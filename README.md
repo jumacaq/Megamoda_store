@@ -2,6 +2,9 @@
 
 Una aplicación de e-commerce moderna y elegante desarrollada con Streamlit, que ofrece una experiencia de compra premium con autenticación OAuth, gestión de carrito y procesamiento de pagos seguro.
 
+Interactúa con el proyecto desplegado aquí:
+https://xperience-ecommerce.streamlit.app/
+
 ## ✨ Características Principales
 
 - **🔐 Autenticación OAuth con Google**: Inicio de sesión seguro y sin fricciones
