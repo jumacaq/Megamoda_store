@@ -5,6 +5,15 @@ Una aplicación de e-commerce moderna y elegante desarrollada con Streamlit, que
 Interactúa con el proyecto desplegado aquí:
 https://xperience-ecommerce.streamlit.app/
 
+Revisa el tutorial sobre Firestore aquí:
+https://claude.ai/public/artifacts/cc1ce94b-cf43-47d0-b0de-4cf81832b847
+
+Revisa el Fluxograma reducido del proyecto aquí:
+https://claude.ai/public/artifacts/ed85984e-67d2-42e4-a5d9-164cc9bd149d
+
+Revisa el Fluxograma completo del proyecto aquí:
+https://claude.ai/public/artifacts/c0d53dca-c795-4d00-aba2-b9330e9e7b23
+
 ## ✨ Características Principales
 
 - **🔐 Autenticación OAuth con Google**: Inicio de sesión seguro y sin fricciones
