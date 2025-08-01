@@ -9,7 +9,7 @@ from datetime import datetime
 load_dotenv()
 
 # Configuración de la página
-st.set_page_config(page_title="Fashion Store",page_icon="🛍️",layout="wide",initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Megamoda",page_icon="🛍️",layout="wide",initial_sidebar_state="collapsed")
 
 # CSS personalizado para el diseño de lujo
 with open("estilos/css_login.html", "r") as file:
@@ -224,7 +224,7 @@ if not st.session_state.usuario:
         st.markdown(f"""
         <div class="main-container">
             <div class="login-card">
-                <div class="brand-logo">FASHION STORE</div>
+                <div class="brand-logo">MEGAMODA STORE</div>
                 <div class="brand-subtitle">Luxury Fashion</div>
                 <div class="decoration-line"></div>
                 <div class="welcome-message">

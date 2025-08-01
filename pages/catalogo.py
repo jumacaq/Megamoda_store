@@ -2,6 +2,9 @@ import streamlit as st
 import stripe
 import os
 from datetime import datetime
+import time
+from modules.recomendador import generar_recomendacion
+
 
 if 'login' not in st.session_state:
     st.switch_page('app.py')
@@ -92,47 +95,78 @@ def get_products():
         st.error(f"Error al obtener productos: {str(e)}")
         return []
 
-def add_to_cart(product_id, user_id):
+def add_to_cart(product_id, product_name, product_price, user_id):
     """Agrega producto al carrito"""
     try:
         cart_ref = st.session_state.db.collection('carts').document(user_id)
         cart_doc = cart_ref.get()
+        cart_items = []
         
         if cart_doc.exists:
-            cart_data = cart_doc.to_dict()
-            items = cart_data.get('items', [])
-            
-            # Verificar si el producto ya está en el carrito
-            product_exists = False
-            for item in items:
-                if item['product_id'] == product_id:
-                    item['quantity'] += 1
-                    product_exists = True
-                    break
-            
-            if not product_exists:
-                items.append({
-                    'product_id': product_id,
-                    'quantity': 1,
-                    'added_at': datetime.now()
-                })
-            
-            cart_ref.update({'items': items})
-        else:
-            cart_ref.set({
-                'items': [{
-                    'product_id': product_id,
-                    'quantity': 1,
-                    'added_at': datetime.now()
-                }],
-                'created_at': datetime.now()
+            cart_items = cart_doc.to_dict().get('items', [])
+
+        # Buscar si ya está en el carrito
+        product_found = False
+        for item in cart_items:
+            if item['product_id'] == product_id:
+                item['quantity'] += 1
+                product_found = True
+                break
+        if not product_found:
+            cart_items.append({
+                'product_id': product_id,
+                'name': product_name,
+                'price': product_price,
+                'quantity': 1,
+                'added_at': datetime.now()
             })
-        
+            
+            
+        # Guardar el carrito actualizado en Firestore
+        # Eliminamos 'session_id' y 'created_at' porque 'updated_at' es más relevante aquí
+        # y 'status' de carrito no es necesario, es un carrito no una orden
+        cart_ref.set({
+            'user_id': user_id,
+            'items': cart_items,
+            'updated_at': datetime.now() # Campo para saber cuándo fue la última modificación
+        })
+
         return True
-    
+
+          
     except Exception as e:
         st.error(f"Error al agregar al carrito: {str(e)}")
         return False
+
+def remove_from_cart(product_name, user_id):
+    """Elimina un producto del carrito"""
+    try:
+        cart_ref = st.session_state.db.collection('carts').document(user_id)
+        cart_doc = cart_ref.get()
+
+        if not cart_doc.exists:
+            return
+
+        cart_items = cart_doc.to_dict().get('items', [])
+        # Filtrar fuera el producto a eliminar
+        updated_items = [item for item in cart_items if item['name'] != product_name]
+
+        # Actualizar en Firestore
+        cart_ref.set({
+            'user_id': user_id,
+            'items': updated_items,
+            'updated_at': datetime.now()
+        })
+
+        # También actualizar session_state
+        st.session_state.cart = updated_items
+        
+        # 🚨 Marcar recomendación como inactiva tras cualquier modificación
+        st.session_state.recomendacion_activa = False
+        
+
+    except Exception as e:
+        st.error(f"Error al eliminar producto del carrito: {str(e)}")
 
 def get_cart(user_id):
     """Obtiene el carrito del usuario"""
@@ -148,63 +182,122 @@ def get_cart(user_id):
         st.error(f"Error al obtener carrito: {str(e)}")
         return []
 
-# Funciones de Stripe
-def create_checkout_session(items, user_email):
-    """Crea una sesión de pago con Stripe"""
+# NUEVA FUNCIÓN: Para simular la creación de la orden y limpieza de carrito
+def process_order(user_id, cart_items):
+    """Procesa la orden: guarda en 'orders' y limpia 'carts'."""
     try:
-        line_items = []
-        for item in items:
-            line_items.append({
-                'price_data': {
-                    'currency': 'usd',
-                    'product_data': {
-                        'name': item['name'],
-                        'images': [item['image']],
-                    },
-                    'unit_amount': int(item['price'] * 100),
-                },
-                'quantity': item['quantity'],
-            })
+        if not cart_items:
+            st.warning("El carrito está vacío, no se puede procesar la orden.")
+            return False
+
+        total = sum(item['price'] * item['quantity'] for item in cart_items)
+        order_data = {
+            'user_id': user_id,
+            'user_name': st.session_state['usuario']['nombre'],
+            'user_email': st.session_state['usuario']['email'],
+            'items': cart_items,
+            'total': total,
+            'status': 'completed', # O 'pending' si quieres un estado intermedio
+            'created_at': datetime.now(),
+            'order_number': f"ORD-{int(time.time())}-{user_id[:4]}" # Genera un número de orden único
+        }
+
+        # Guardar la orden en la colección 'orders'
+        st.session_state.db.collection('orders').add(order_data)
+        st.success("🎉 ¡Pedido realizado con éxito!")
+
+        # Actualizar stock de productos (opcional aquí, pero recomendado)
+        update_product_stock(cart_items)
+
+        # Limpiar el carrito del usuario en Firestore
+        cart_ref = st.session_state.db.collection('carts').document(user_id)
+        cart_ref.delete()
         
-        checkout_session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=line_items,
-            mode='payment',
-            success_url='http://localhost:8501?payment=success&session_id={CHECKOUT_SESSION_ID}',
-            cancel_url='http://localhost:8501?payment=cancelled',
-            customer_email=user_email,
-            metadata={
-                'user_id': st.session_state['usuario']['uid'],
-                'user_name': st.session_state['usuario']['nombre']
-            }
-        )
-        
-        return checkout_session.url, checkout_session.id
-    
+        # Limpiar también el carrito en la sesión de Streamlit
+        st.session_state.cart = []
+
+        return True
+
     except Exception as e:
-        st.error(f"Error al crear sesión de pago: {str(e)}")
-        return None
+        st.error(f"Error al procesar la orden: {str(e)}")
+        return False
+
+def update_product_stock(items):
+    """Actualiza el stock de los productos comprados en Firestore"""
+    try:
+        for item in items:
+            product_ref = st.session_state.db.collection('products').document(item['product_id'])
+            product_doc = product_ref.get()
+
+            if product_doc.exists:
+                product_data = product_doc.to_dict()
+                current_stock = product_data.get('stock', 0)
+                new_stock = max(0, current_stock - item['quantity'])
+
+                product_ref.update({'stock': new_stock})
+            else:
+                st.warning(f"Producto con ID {item['product_id']} no encontrado para actualizar stock.")
+
+    except Exception as e:
+        st.error(f"Error al actualizar stock: {str(e)}")
+
+# Funciones de Stripe
+#def create_checkout_session(items, user_email):
+    #"""Crea una sesión de pago con Stripe"""
+    #try:
+        #line_items = []
+        #for item in items:
+           # line_items.append({
+                #'price_data': {
+                    #'currency': 'usd',
+                    #'product_data': {
+                        #'name': item['name'],
+                        #'images': [item['image']],
+                   # },
+                    #'unit_amount': int(item['price'] * 100),
+               # },
+                #'quantity': item['quantity'],
+            #})
+        
+        #checkout_session = stripe.checkout.Session.create(
+            #payment_method_types=['card'],
+           # line_items=line_items,
+            #mode='payment',
+            #success_url='http://localhost:8501?payment=success&session_id={CHECKOUT_SESSION_ID}',
+            #cancel_url='http://localhost:8501?payment=cancelled',
+            #customer_email=user_email,
+            #metadata={
+                #'user_id': st.session_state['usuario']['uid'],
+                #'user_name': st.session_state['usuario']['nombre']
+            #}
+        #)
+        
+        #return checkout_session.url, checkout_session.id
+    
+    #except Exception as e:
+        #st.error(f"Error al crear sesión de pago: {str(e)}")
+        #return None
 
 # Función para guardar carrito en Firestore
-def save_cart_to_firestore(session_id, user_id, cart_items):
-    """Guarda el carrito en Firestore antes de ir a Stripe"""
-    try:
-        cart_data = {
-            'session_id': session_id,
-            'user_id': user_id,
-            'items': cart_items,
-            'created_at': datetime.now(),
-            'status': 'pending_payment'
-        }
+#def save_cart_to_firestore(session_id, user_id, cart_items):
+    #"""Guarda el carrito en Firestore antes de ir a Stripe"""
+    #try:
+        #cart_data = {
+            #'session_id': session_id,
+            #'user_id': user_id,
+            #'items': cart_items,
+            #'created_at': datetime.now(),
+            #'status': 'pending_payment'
+        #}
         
         # Guardar en la colección 'temp_carts' para recuperar después
-        st.session_state.db.collection('carts').document(session_id).set(cart_data)
+        #st.session_state.db.collection('carts').document(session_id).set(cart_data)
         
-    except Exception as e:
-        st.error(f"Error al guardar carrito: {str(e)}")
+    #except Exception as e:
+        #st.error(f"Error al guardar carrito: {str(e)}")
 
 # --- LÓGICA PRINCIPAL DE LA PÁGINA ---
-st.markdown('<div class="main-header"><h1>🛍️ Fashion Store</h1><p>Bienvenido/a a tu tienda de moda</p></div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header"><h1>🛍️ Megamoda Store</h1><p>Bienvenido/a a tu tienda de moda</p></div>', unsafe_allow_html=True)
 
 # Sidebar con información del usuario y carrito
 with st.sidebar:
@@ -214,32 +307,55 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
     
+    
     st.markdown("---")
     
     # Carrito de compras
     st.markdown("### 🛒 Carrito")
+    # NUEVO: Lógica para cargar el carrito desde Firestore una vez por sesión
+    if 'cart_loaded' not in st.session_state or not st.session_state.cart_loaded:
+        if st.session_state.get('usuario') and st.session_state['usuario'].get('uid'):
+            st.session_state.cart = get_cart(st.session_state['usuario']['uid'])
+            st.session_state.cart_loaded = True
+        else:
+            st.session_state.cart = [] # Inicializa como vacío si no hay usuario o UID
+            st.session_state.cart_loaded = True # Para evitar intentos repetidos
+    # ✅ Mostrar recomendación solo si está activa 
+    if st.session_state.get('recomendacion') and st.session_state.get('recomendacion_activa', False):
+        st.markdown("---")
+        st.markdown("### 🤖 Recomendación personalizada")
+        st.info(st.session_state.recomendacion)       
+   
+    
     if st.session_state.cart:
         total = 0
         for item in st.session_state.cart:
-            st.markdown(f"""
-            <div class="cart-item">
-                <strong>{item['name']}</strong><br>
-                ${item['price']:.2f} x {item['quantity']}
-            </div>
-            """, unsafe_allow_html=True)
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                st.markdown(f"""
+                <div class="cart-item">
+                    <strong>{item['name']}</strong><br>
+                    ${item['price']:.2f} x {item['quantity']}
+                </div>
+                """, unsafe_allow_html=True)
+            with col2:
+                if st.button("🗑️", key=f"remove_{item['name']}"):
+                    remove_from_cart(item['name'], st.session_state['usuario']['uid'])
+                    st.rerun()  # Recargar para reflejar cambios
             total += item['price'] * item['quantity']
         
         st.markdown(f"**Total: ${total:.2f}**")
-
-        if st.button("💳 Proceder al Pago", key="checkout"):
-            checkout_url, session_id = create_checkout_session(st.session_state.cart, st.session_state['usuario']['email'])
-            if checkout_url and session_id:
-                # Guardar datos críticos en la base de datos antes de redirigir
-                save_cart_to_firestore(session_id, st.session_state['usuario']['uid'], st.session_state.cart)
+        
+        # Se asegura que solo exista UN botón de acción final y sin Stripe
+        if st.button("✅ Realizar Pedido", key="process_order_button"): # Cambiado key para evitar conflicto
+            if process_order(st.session_state['usuario']['uid'], st.session_state.cart):
+                st.session_state.recomendacion_activa = False  # Desactivar recomendación tras el pedido
+                st.switch_page('pages/compraok.py')
+            else:
+                st.error("Hubo un problema al finalizar el pedido. Por favor, inténtelo de nuevo.")
                 
-                # Usar link_button para abrir en la misma ventana
-                st.link_button("🔗 Ir a Stripe Checkout", checkout_url)
-                st.success("¡Sesión de pago creada! Haz clic en el botón para continuar.")
+    
+
     else:
         st.info("Tu carrito está vacío")
 
@@ -294,8 +410,19 @@ if products:
                     else:
                         st.session_state.cart.append(cart_item)
                     
+                    
+                    add_to_cart(product['id'], product['name'], product['price'], st.session_state['usuario']['uid'])
+                    # Generar recomendación solo si aún no está en el carrito
+                    all_products = get_products()
+                    st.session_state.recomendacion = generar_recomendacion(product, all_products)
+                    st.session_state.recomendacion_activa = True
+                    
                     st.success(f"✅ {product['name']} agregado al carrito!")
+
                     st.rerun()
+  
+
+   
 else:
     st.info("No se encontraron productos en esta categoría.")
 
@@ -303,7 +430,10 @@ else:
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; padding: 2rem;">
-    <p>🛍️ Fashion Store - Tu estilo, nuestra pasión</p>
+    <p>🛍️ Megamoda Store - Tu estilo, nuestra pasión</p>
     <p>Desarrollado con ❤️ usando Streamlit, Firebase y Stripe</p>
 </div>
 """, unsafe_allow_html=True)
+
+
+

@@ -1,0 +1,8 @@
+# Entorno virtual
+.venv/
+__pycache__/
+*.pyc
+
+# Archivos sensibles
+.env
+serviceAccountKey.json
