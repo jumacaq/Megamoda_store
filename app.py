@@ -33,13 +33,13 @@ if 'has_run' not in st.session_state:
     st.session_state.db = firestore.client()
 
     # Inicia el Cliente de Google
-    st.session_state.google_client_id = st.secrets("GOOGLE_CLIENT_ID")
-    st.session_state.google_client_secret = st.secrets("GOOGLE_SECRET_ID")
+    st.session_state.google_client_id = st.secrets["GOOGLE_CLIENT_ID"]
+    st.session_state.google_client_secret = st.secrets["GOOGLE_SECRET_ID"]
 
     #Inicializa el carrito de compras
     st.session_state.cart = []
 
-# Autenticacst.secrets
+# Autenticación con Google
 def google_auth():
     # URL de autorización de Google
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth"

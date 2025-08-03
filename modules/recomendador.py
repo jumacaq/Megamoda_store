@@ -6,7 +6,7 @@ import streamlit as st
 
 # Cargar variables de entorno
 #load_dotenv()
-api_key = st.secrets("OPENAI_API_KEY")
+api_key = st.secrets["OPENAI_API_KEY"]
 
 if not api_key:
     raise ValueError("❌ OPENAI_API_KEY no está definido. Verifica tu archivo .env.")
