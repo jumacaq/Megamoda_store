@@ -6,7 +6,7 @@ from firebase_admin import credentials, auth, firestore
 from dotenv import load_dotenv
 import requests
 from datetime import datetime
-load_dotenv()
+#load_dotenv()
 
 # Configuración de la página
 st.set_page_config(page_title="Megamoda",page_icon="🛍️",layout="wide",initial_sidebar_state="collapsed")
@@ -19,24 +19,25 @@ st.markdown(html_content, unsafe_allow_html=True)
 # Se ejecuta una única vez cuando carga la aplicación
 if 'has_run' not in st.session_state:
     st.session_state.has_run = True
-    service_account_key_path = 'serviceAccountKey.json'
+    #service_account_key_path = 'serviceAccountKey.json'
     collection_name = "usuarios"
     st.session_state.redirect_uri = "http://localhost:8501"
 
     # --- Inicialización de Firebase ADMIN SDK ---
     if not firebase_admin._apps:
-        cred = credentials.Certificate(service_account_key_path)
+        #cred = credentials.Certificate(service_account_key_path)
+        cred = credentials.Certificate(st.secrets["firebase"])
         firebase_admin.initialize_app(cred)
     st.session_state.db = firestore.client()
 
     # Inicia el Cliente de Google
-    st.session_state.google_client_id = os.environ.get("GOOGLE_CLIENT_ID")
-    st.session_state.google_client_secret = os.environ.get("GOOGLE_SECRET_ID")
+    st.session_state.google_client_id = st.secrets("GOOGLE_CLIENT_ID")
+    st.session_state.google_client_secret = st.secrets("GOOGLE_SECRET_ID")
 
     #Inicializa el carrito de compras
     st.session_state.cart = []
 
-# Autenticación con Google
+# Autenticacst.secrets
 def google_auth():
     # URL de autorización de Google
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth"
