@@ -340,8 +340,8 @@ def create_paypal_payment(items, user_id):
                 "payment_method": "paypal"
             },
             "redirect_urls": {
-                "return_url": "http://localhost:8501?payment=success",
-                "cancel_url": "http://localhost:8501?payment=cancelled"
+                "return_url": "htpp://megamodastore.streamlit.app?payment=success",
+                "cancel_url": "http://megamodastore.streamlit.app?payment=cancelled"
             },
             "transactions": [{
                 "item_list": {
