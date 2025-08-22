@@ -68,7 +68,7 @@ https://xperience-ecommerce.streamlit.app/
 ## 📁 Estructura del Proyecto
 
 ```
-fashion-store/
+Megamoda-store/
 ├── app.py                 # Página principal y autenticación
 ├── pages/
 │   ├── catalogo.py       # Catálogo de productos
@@ -79,7 +79,7 @@ fashion-store/
 │   ├── css_login.html    # Estilos para login
 │   ├── css_catalogo.html # Estilos para catálogo
 │   └── css_compra.html   # Estilos para compra
-├── serviceAccountKey.json # Credenciales Firebase
+├
 ├── requirements.txt      # Dependencias Python
 ├── .env                  # Variables de entorno
 └── README.md            # Este archivo
@@ -154,7 +154,7 @@ fashion-store/
 - [ ] Múltiples métodos de pago
 - [ ] Sistema de cupones y descuentos
 - [ ] Chat en vivo con soporte
-- [ ] Agregar un sistema de pago.
+
 
 ---
 

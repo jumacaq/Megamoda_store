@@ -5,8 +5,9 @@ from openai import OpenAI
 import streamlit as st
 
 # Cargar variables de entorno
-#load_dotenv()
-api_key = st.secrets["OPENAI_API_KEY"]
+load_dotenv()
+#api_key = os.getenv("OPENAI_API_KEY")
+api_key = st.secrets["OPENAI_API_KEY"]  # Prioriza el secreto de Streamlit si está disponible
 
 if not api_key:
     raise ValueError("❌ OPENAI_API_KEY no está definido. Verifica tu archivo .env.")
@@ -22,6 +23,8 @@ Un cliente acaba de agregar el siguiente producto a su carrito:
 - Categoría: {producto['category']}
 
 Tu tarea es recomendar un único producto adicional del siguiente catálogo que combine con este producto y mejore su look. Solo debes recomendar productos diferentes al seleccionado.
+
+⚠️ Importante: Si algún producto ya se encuentra en el carrito del cliente, no debes considerarlo en la recomendación.
 
 Catálogo:
 {[

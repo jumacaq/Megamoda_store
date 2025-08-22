@@ -6,3 +6,6 @@ __pycache__/
 # Archivos sensibles
 .env
 serviceAccountKey.json
+
+catalogo_streamlit.txt
+feedback.txt

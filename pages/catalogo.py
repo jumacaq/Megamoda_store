@@ -1,5 +1,5 @@
 import streamlit as st
-import stripe
+import paypalrestsdk # Importa la librería de PayPal
 import os
 from datetime import datetime
 import time
@@ -15,8 +15,14 @@ with open("estilos/css_catalogo.html", "r") as file:
 st.markdown(html_content, unsafe_allow_html=True)
 
 # Configuración de Stripe
-stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
-
+#stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+paypalrestsdk.configure({
+    "mode": "sandbox",  # Usa "live" para producción
+    #"client_id": os.environ.get("PAYPAL_CLIENT_ID"),
+    #"client_secret": os.environ.get("PAYPAL_SECRET_KEY")
+    "client_id": st.secrets["PAYPAL_CLIENT_ID"],
+    "client_secret": st.secrets["PAYPAL_SECRET_KEY"]
+})
 # Funciones de Firestore
 def get_products():
     """Obtiene productos desde Firestore"""
@@ -70,7 +76,7 @@ def get_products():
                     "price": 95.99,
                     "image": "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=400",
                     "description": "Zapatos elegantes para completar tu look",
-                    "category": "zapatos",
+                    "category": "calzado",
                     "stock": 12
                 },
                 {
@@ -80,7 +86,32 @@ def get_products():
                     "description": "Bolso de mano versátil y elegante",
                     "category": "accesorios",
                     "stock": 18
+                },
+                {
+                    "name": "Camiseta veraniega",
+                    "price": 45.99,
+                    "image": "https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=400",
+                    "description": "Camiseta negra con cuello redondo",
+                    "category": "camisetas",
+                    "stock": 20
+                },
+                {
+                    "name": "Zapatillas Nike",
+                    "price": 185.99,
+                    "image": "https://images.unsplash.com/photo-1512374382149-233c42b6a83b?w=400",
+                    "description": "Zapatillas Nike blancas de caña alta",
+                    "category": "calzado",
+                    "stock": 15
+                },
+                {
+                    "name": "Cartera de Cuero",
+                    "price": 135.99,
+                    "image": "https://images.unsplash.com/photo-1598532163257-ae3c6b2524b6?w=400",
+                    "description": "Cartera de cuero marrón",
+                    "category": "accesorios",
+                    "stock": 25
                 }
+                
             ]
             
             # Agregar productos de ejemplo a Firestore
@@ -278,24 +309,67 @@ def update_product_stock(items):
         #st.error(f"Error al crear sesión de pago: {str(e)}")
         #return None
 
-# Función para guardar carrito en Firestore
-#def save_cart_to_firestore(session_id, user_id, cart_items):
-    #"""Guarda el carrito en Firestore antes de ir a Stripe"""
-    #try:
-        #cart_data = {
-            #'session_id': session_id,
-            #'user_id': user_id,
-            #'items': cart_items,
-            #'created_at': datetime.now(),
-            #'status': 'pending_payment'
-        #}
+def save_paypal_payment_and_user_data(payment_id, user_id):
+    """Guarda una referencia del usuario y el payment_id en Firestore"""
+    db = st.session_state.db
+    #st.write(f"DEBUG: Guardando payment_id {payment_id} para user {user_id}")
+    # Usar payment_id como clave del documento
+    db.collection('paypal_payments').document(payment_id).set({
+        'user_id': user_id,
+        'created_at': datetime.now()
+    })
+    #st.write("DEBUG: Payment ID guardado exitosamente")        
+# Función para crear una sesión de pago con PayPal
+def create_paypal_payment(items, user_id):
+    """Crea una sesión de pago con PayPal"""
+    try:
+        total_amount = sum(item['price'] * item['quantity'] for item in items)
         
-        # Guardar en la colección 'temp_carts' para recuperar después
-        #st.session_state.db.collection('carts').document(session_id).set(cart_data)
-        
-    #except Exception as e:
-        #st.error(f"Error al guardar carrito: {str(e)}")
+        # Prepara los artículos en el formato que espera PayPal
+        line_items_paypal = [{
+            "name": item['name'],
+            "sku": item['product_id'],
+            "price": str(item['price']),
+            "currency": "USD",
+            "quantity": item['quantity']
+        } for item in items]
 
+        payment = paypalrestsdk.Payment({
+            "intent": "sale",
+            "payer": {
+                "payment_method": "paypal"
+            },
+            "redirect_urls": {
+                "return_url": "http://localhost:8501?payment=success",
+                "cancel_url": "http://localhost:8501?payment=cancelled"
+            },
+            "transactions": [{
+                "item_list": {
+                    "items": line_items_paypal
+                },
+                "amount": {
+                    "total": f"{total_amount:.2f}",
+                    "currency": "USD"
+                },
+                "description": "Compra en tu tienda Megamoda Store"
+            }]
+        })
+
+        if payment.create():
+            #st.session_state['paypal_payment_id'] = payment.id # Guarda el payment ID
+            # ➡️ RETORNA EL OBJETO 'payment' COMPLETO
+            #st.write(f"DEBUG: Payment ID generado: {payment.id}") 
+            return payment 
+        else:
+            st.error(f"Error al crear el pago en PayPal: {payment.error['message']}")
+            return None
+    
+    except Exception as e:
+        st.error(f"Error inesperado al procesar el pago: {str(e)}")
+        return None
+
+
+    
 # --- LÓGICA PRINCIPAL DE LA PÁGINA ---
 st.markdown('<div class="main-header"><h1>🛍️ Megamoda Store</h1><p>Bienvenido/a a tu tienda de moda</p></div>', unsafe_allow_html=True)
 
@@ -307,26 +381,26 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
     
-    
     st.markdown("---")
     
     # Carrito de compras
     st.markdown("### 🛒 Carrito")
-    # NUEVO: Lógica para cargar el carrito desde Firestore una vez por sesión
+    # Lógica para cargar el carrito desde Firestore una vez por sesión
     if 'cart_loaded' not in st.session_state or not st.session_state.cart_loaded:
         if st.session_state.get('usuario') and st.session_state['usuario'].get('uid'):
             st.session_state.cart = get_cart(st.session_state['usuario']['uid'])
             st.session_state.cart_loaded = True
         else:
-            st.session_state.cart = [] # Inicializa como vacío si no hay usuario o UID
-            st.session_state.cart_loaded = True # Para evitar intentos repetidos
-    # ✅ Mostrar recomendación solo si está activa 
+            st.session_state.cart = []
+            st.session_state.cart_loaded = True
+            
+    # Mostrar recomendación solo si está activa 
     if st.session_state.get('recomendacion') and st.session_state.get('recomendacion_activa', False):
         st.markdown("---")
         st.markdown("### 🤖 Recomendación personalizada")
-        st.info(st.session_state.recomendacion)       
-   
+        st.info(st.session_state.recomendacion) 
     
+    # Lógica para mostrar los items del carrito y el total
     if st.session_state.cart:
         total = 0
         for item in st.session_state.cart:
@@ -341,31 +415,61 @@ with st.sidebar:
             with col2:
                 if st.button("🗑️", key=f"remove_{item['name']}"):
                     remove_from_cart(item['name'], st.session_state['usuario']['uid'])
-                    st.rerun()  # Recargar para reflejar cambios
+                    st.rerun()
             total += item['price'] * item['quantity']
         
-        st.markdown(f"**Total: ${total:.2f}**")
-        
-        # Se asegura que solo exista UN botón de acción final y sin Stripe
-        if st.button("✅ Realizar Pedido", key="process_order_button"): # Cambiado key para evitar conflicto
-            if process_order(st.session_state['usuario']['uid'], st.session_state.cart):
-                st.session_state.recomendacion_activa = False  # Desactivar recomendación tras el pedido
-                st.switch_page('pages/compraok.py')
-            else:
-                st.error("Hubo un problema al finalizar el pedido. Por favor, inténtelo de nuevo.")
-                
-    
+        st.session_state.total = total
+        st.markdown(f"**Total: ${st.session_state.total:.2f}**")
 
+        st.markdown("---")
+
+        #st.sidebar.markdown(f"**Total: ${total:.2f}**")
+
+        # Este es el único botón de pago que debes tener
+        if st.sidebar.button("✅ Pagar con PayPal", key="process_order_paypal"):
+            with st.spinner("Redirigiendo a PayPal..."):
+                # So we need to call it and get the `approval_url` from the response.
+                payment = create_paypal_payment(st.session_state.cart,st.session_state['usuario']['uid'])
+               #approval_url = create_paypal_payment(st.session_state.cart, st.session_state['usuario']['uid'])
+
+                if payment and payment.success():
+                    approval_url = next((link.href for link in payment.links if link.rel == "approval_url"), None)
+                    
+                    if approval_url:
+                        # Guardar el payment_id y el usuario en Firestore
+                        save_paypal_payment_and_user_data(payment.id, st.session_state.usuario['uid'])
+                        
+                        # Redirigir al usuario a PayPal
+                        st.markdown(
+                            f'<meta http-equiv="refresh" content="0; url={approval_url}">',
+                            unsafe_allow_html=True
+                        )
+                        st.stop()
+                    else:
+                        st.error("No se pudo obtener la URL de aprobación de PayPal.")
+                    
+                else:
+                    st.error("No se pudo crear la sesión de pago con PayPal. Por favor, inténtalo de nuevo.")
+                    st.rerun()
+        # Botón para vaciar carrito (movido para evitar duplicidad)
+        #if st.button("🗑️ Vaciar Carrito", key="vaciar_carrito"):
+            #st.session_state.cart = []
+            # Lógica para limpiar el carrito en Firestore (opcional, pero recomendado)
+            #cart_ref = st.session_state.db.collection('carts').document(st.session_state['usuario']['uid'])
+            #cart_ref.delete()
+            #st.experimental_rerun()
     else:
-        st.info("Tu carrito está vacío")
-
+        st.sidebar.info("Tu carrito está vacío")
+    
+    
 # Contenido principal - Catálogo de productos
 st.markdown("## 🛍️ Catálogo de Productos")
 
 # Filtros
 col1, col2 = st.columns([1, 3])
 with col1:
-    categories = ["todos", "vestidos", "blusas", "pantalones", "chaquetas", "zapatos", "accesorios"]
+    categories = ["todos", "vestidos", "blusas", "pantalones", "chaquetas", "calzado", "accesorios",
+                  "camisetas"]
     selected_category = st.selectbox("Categoría", categories)
 
 # Obtener productos
@@ -397,6 +501,7 @@ if products:
                 if st.button(f"🛒 Agregar al Carrito", key=f"add_{product.get('id', idx)}"):
                     # Agregar al carrito en memoria (para demo)
                     cart_item = {
+                        'product_id': product.get('id', None),
                         'name': product['name'],
                         'price': product['price'],
                         'quantity': 1,
