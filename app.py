@@ -21,7 +21,7 @@ if 'has_run' not in st.session_state:
     st.session_state.has_run = True
     service_account_key_path = st.secrets["firebase"]
     collection_name = "usuarios"
-    st.session_state.redirect_uri = "http://localhost:8501"
+    st.session_state.redirect_uri = "https://megamodastore.streamlit.app"
 
     # --- Inicialización de Firebase ADMIN SDK ---
     if not firebase_admin._apps:
