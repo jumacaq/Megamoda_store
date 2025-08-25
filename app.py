@@ -267,14 +267,14 @@ code = query_params.get("code")
 # ✅ NUEVA LÓGICA PARA GESTIONAR LA RESPUESTA DE PAYPAL
 payment_token = query_params.get("token")
 payment_payer_id = query_params.get("PayerID")
-payment_id = query_params.get("paymentId")
+payment_id = query_params.get("paymentId") or query_params.get("paymentID")
 
 
 if payment_token and payment_payer_id and payment_id:
     # Mostrar spinner mientras se procesa
     with st.spinner("Procesando pago de PayPal..."):
         #Recupera la información del usuario usando el token
-        retrieved_user = get_user_from_paypal_id(payment_id)
+        retrieved_user = get_user_from_paypal_id(payment_id) 
         
         if retrieved_user and retrieved_user.get('uid'):
             st.session_state.usuario = retrieved_user
