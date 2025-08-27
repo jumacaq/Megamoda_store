@@ -1,9 +1,9 @@
 # 🛍️ Megamoda Fashion Store
 
-Una aplicación de e-commerce moderna y elegante desarrollada con Streamlit, que ofrece una experiencia de compra premium con autenticación OAuth, gestión de carrito.
+Una aplicación de e-commerce moderna y elegante desarrollada con Streamlit, que ofrece una experiencia de compra premium con autenticación OAuth, gestión de carrito y sistema de pago con PayPal.
 
 Interactúa con el proyecto desplegado aquí:
-https://xperience-ecommerce.streamlit.app/
+https://megamodastore.streamlit.app/
 
 
 
@@ -23,7 +23,7 @@ https://xperience-ecommerce.streamlit.app/
 - **Backend**: Python
 - **Base de Datos**: Firebase Firestore
 - **Autenticación**: Google OAuth 2.0
-- **Almacenamiento**: Firebase Storage
+- **Almacenamiento**: Firebase Database
 - **Deployment**: Streamlit Cloud
 
 ## 📋 Requisitos Previos
@@ -37,7 +37,7 @@ https://xperience-ecommerce.streamlit.app/
 
 1. **Clonar el repositorio**
    ```bash
-   git clone https://github.com/jumacaq/Megamoda_ecommerce_platform.git
+   git clone https://github.com/jumacaq/Megamoda_store.git
    cd fashion-store
    ```
 
@@ -53,6 +53,8 @@ https://xperience-ecommerce.streamlit.app/
    GOOGLE_CLIENT_ID=tu_google_client_id
    GOOGLE_SECRET_ID=tu_google_secret_id
    OPENAI_API_KEY=tu_openai_api_key
+   PAYPAL_CLIENT_ID=tu_paypal_client_id
+   PAYPAL_SECRET_KEY=tu_paypal_secret_key
    ```
 
 4. **Configurar Firebase**
@@ -79,7 +81,6 @@ Megamoda-store/
 │   ├── css_login.html    # Estilos para login
 │   ├── css_catalogo.html # Estilos para catálogo
 │   └── css_compra.html   # Estilos para compra
-├
 ├── requirements.txt      # Dependencias Python
 ├── .env                  # Variables de entorno
 └── README.md            # Este archivo
@@ -101,7 +102,7 @@ Megamoda-store/
 1. Ir a Google Cloud Console
 2. Crear credenciales OAuth 2.0
 3. Configurar URIs de redirección:
-   - `http://localhost:8501`
+   - `http://localhost:8501` #para local
    - Tu dominio de producción
 
 
@@ -128,6 +129,11 @@ Megamoda-store/
 - Actualización de inventario
 - Número de orden único
 
+### Sistema de pago con PayPal
+- Uso de cuenta de prueba ´sandbox' en PayPal
+- Comprobación y verificación de pago 
+
+
 ## 🚀 Deployment
 
 ### Streamlit Cloud
@@ -151,7 +157,7 @@ Megamoda-store/
 - [ ] Notificaciones push
 - [ ] Dashboard de administración
 - [ ] Análisis de ventas
-- [ ] Múltiples métodos de pago
+- [ ] Agregar otros métodos de pago
 - [ ] Sistema de cupones y descuentos
 - [ ] Chat en vivo con soporte
 
